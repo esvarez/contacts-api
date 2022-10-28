@@ -16,6 +16,10 @@ func NewHandler(routes *mux.Router, service *Service) {
 		Methods(http.MethodGet)
 	routes.Handle("/contacts", createContacts(service)).
 		Methods(http.MethodPost)
+	routes.Handle("/contacts/{id}", updateContact(service)).
+		Methods(http.MethodPut)
+	routes.Handle("/contacts/{id}", deleteContact(service)).
+		Methods(http.MethodDelete)
 }
 
 func hello() http.Handler {
@@ -69,5 +73,37 @@ func getContact(service *Service) http.Handler {
 			return
 		}
 		w.Write(response)
+	})
+}
+
+func updateContact(service *Service) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		id := vars["id"]
+
+		body := r.Body
+		defer body.Close()
+
+		conctactUpdates := Contact{}
+
+		err := json.NewDecoder(body).Decode(&conctactUpdates)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			fmt.Fprintf(w, "Error: %v", err)
+			return
+		}
+
+		service.UpdateContact(id, conctactUpdates)
+		fmt.Fprintf(w, "Contact updated")
+	})
+}
+
+func deleteContact(service *Service) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		vars := mux.Vars(r)
+		id := vars["id"]
+
+		service.DeleteContact(id)
+		fmt.Fprintf(w, "Contact deleted")
 	})
 }

@@ -32,3 +32,14 @@ func (s *Service) GetContact(id string) Contact {
 	idint, _ := strconv.Atoi(id)
 	return s.db[idint]
 }
+
+func (s *Service) UpdateContact(id string, contactUpdates Contact) {
+	idint, _ := strconv.Atoi(id)
+	contactUpdates.ID = idint
+	s.db[idint] = contactUpdates
+}
+
+func (s *Service) DeleteContact(id string) {
+	idint, _ := strconv.Atoi(id)
+	delete(s.db, idint)
+}
