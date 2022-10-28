@@ -1,24 +1,43 @@
-package main
+package handler
 
 import (
 	"encoding/json"
 	"fmt"
 	"net/http"
 
+	"github.com/esvarez/go-course/internal/model"
 	"github.com/gorilla/mux"
 )
 
-func NewHandler(routes *mux.Router, service *Service) {
+type contactsService interface {
+	GetContacts() []model.Contact
+	GetContact(id string) (model.Contact, error)
+	CreateContact(contact model.Contact)
+	UpdateContact(id string, contact model.Contact)
+	DeleteContact(id string)
+}
+
+type ContactController struct {
+	contactSrv contactsService
+}
+
+func NewContactController(s contactsService) ContactController {
+	return ContactController{
+		contactSrv: s,
+	}
+}
+
+func NewHandler(routes *mux.Router, ctrl ContactController) {
 	routes.Handle("/", hello())
-	routes.Handle("/contacts", getContacts(service)).
+	routes.Handle("/contacts", ctrl.getContacts()).
 		Methods(http.MethodGet)
-	routes.Handle("/contacts/{id}", getContact(service)).
+	routes.Handle("/contacts/{id}", ctrl.getContact()).
 		Methods(http.MethodGet)
-	routes.Handle("/contacts", createContacts(service)).
+	routes.Handle("/contacts", ctrl.createContacts()).
 		Methods(http.MethodPost)
-	routes.Handle("/contacts/{id}", updateContact(service)).
+	routes.Handle("/contacts/{id}", ctrl.updateContact()).
 		Methods(http.MethodPut)
-	routes.Handle("/contacts/{id}", deleteContact(service)).
+	routes.Handle("/contacts/{id}", ctrl.deleteContact()).
 		Methods(http.MethodDelete)
 }
 
@@ -28,9 +47,9 @@ func hello() http.Handler {
 	})
 }
 
-func getContacts(service *Service) http.Handler {
+func (c *ContactController) getContacts() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		contacts := service.GetContacts()
+		contacts := c.contactSrv.GetContacts()
 		response, err := json.Marshal(contacts)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -41,31 +60,36 @@ func getContacts(service *Service) http.Handler {
 	})
 }
 
-func createContacts(service *Service) http.Handler {
+func (c *ContactController) createContacts() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body := r.Body
 		defer body.Close()
 
-		c := Contact{}
+		co := model.Contact{}
 
-		err := json.NewDecoder(body).Decode(&c)
+		err := json.NewDecoder(body).Decode(&co)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			fmt.Fprintf(w, "Error: %v", err)
 			return
 		}
-
-		service.CreateContact(c)
+		c.contactSrv.CreateContact(co)
 		fmt.Fprintf(w, "Contact created")
 	})
 }
 
-func getContact(service *Service) http.Handler {
+func (c *ContactController) getContact() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		id := vars["id"]
 
-		contact := service.GetContact(id)
+		contact, err := c.contactSrv.GetContact(id)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			fmt.Fprintf(w, "Error: %v", err)
+			return
+		}
+
 		response, err := json.Marshal(contact)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -76,7 +100,7 @@ func getContact(service *Service) http.Handler {
 	})
 }
 
-func updateContact(service *Service) http.Handler {
+func (c *ContactController) updateContact() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		id := vars["id"]
@@ -84,7 +108,7 @@ func updateContact(service *Service) http.Handler {
 		body := r.Body
 		defer body.Close()
 
-		conctactUpdates := Contact{}
+		conctactUpdates := model.Contact{}
 
 		err := json.NewDecoder(body).Decode(&conctactUpdates)
 		if err != nil {
@@ -93,17 +117,17 @@ func updateContact(service *Service) http.Handler {
 			return
 		}
 
-		service.UpdateContact(id, conctactUpdates)
+		c.contactSrv.UpdateContact(id, conctactUpdates)
 		fmt.Fprintf(w, "Contact updated")
 	})
 }
 
-func deleteContact(service *Service) http.Handler {
+func (c *ContactController) deleteContact() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		vars := mux.Vars(r)
 		id := vars["id"]
 
-		service.DeleteContact(id)
+		c.contactSrv.DeleteContact(id)
 		fmt.Fprintf(w, "Contact deleted")
 	})
 }
